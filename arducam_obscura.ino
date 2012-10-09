@@ -1,3 +1,5 @@
+//this project is licensed under the GPLv3
+
 #include <Wire.h>
 //this library is used to read out the light sensors (tsl 2561) data
 //more info:  https://github.com/adafruit/TSL2561-Arduino-Library
