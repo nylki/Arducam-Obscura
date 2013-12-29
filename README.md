@@ -14,8 +14,8 @@ Also a box is need for loading the film and mounting the electronics.
 Creating the pinhole
 ---------------------
 A pinhole is needed as well of course. It should have a diameter of ~0.3mm with a distance of approx. 40mm from pinhole to sensitive film plane. (focal length)
-The pinhole should also have a good and round shape. Using a magnifier helps. For good results use a black coated aluminum foil, the smallest stitching needle, sandpaper you can find and a good scanner.
-Create a few holes with the foil lying flat on a hard surface. Press the needle with variating pressure. Don't apply too much pressure. Turn the metal foil 180° and smooth the edges with the sandpaper. Next scan the foil with the highest resolution possible and measure the holes. Select the hole with the best shape and size.
+The pinhole should also have a good and round shape. Using a magnifier helps. For good results use a black coated aluminum foil, the smallest stitching needle you can find, sandpaper  and a good scanner.
+Create a few holes with the foil lying flat on a hard surface. Press the needle with variating pressure. Don't apply too much pressure. Turn the metal foil 180° and smooth the edges with the sandpaper. Next scan the foil with the highest resolution possible and measure the holes. Select the hole with the best shape and size. Although using the scanner + software for measurement and selection is useful, very good results can be achieved with enough light, a magnifier and a ruler with a small enough scala.
 size shouldn't be more than 0.5mm and not less than 0.2mm. For the optimum diameter to use, consult material on pinhole cameras/ camera obscura. Source I used include: http://www.pinhole.cz/en/pinholecameras/pinhole_01.html , http://www.f295.org/main/showthread.php?16595-Optimum-Pinhole-Size , http://www.huecandela.com/hue-x/pin-pdf/Prober-%20Wellman.pdf . 
 
 
