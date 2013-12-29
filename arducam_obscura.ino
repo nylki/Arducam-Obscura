@@ -12,9 +12,7 @@
   For more information on this project, please take a look at the article
   on my website: http://tombr.de/arducam-obscura/
   It is on German, but images are included.
-  
-  
-  
+
   */
   
   //this library is used to read out the light sensors (tsl 2561) data
@@ -24,7 +22,8 @@
   #include <Adafruit_TSL2561.h>
   #include <Servo.h>
   #include <string.h>
-  #include<stdlib.h>
+  #include <stdlib.h>
+  #include <EEPROM.h>
 
   void addLight(int millisecondsPassed);
   void autoExpose( struct FilmType );
@@ -40,14 +39,14 @@
   
   //Messung mit Canon, f20, autozeit, iso100... Zeit 5 Sekunden
   //Messung gleiche Zeit 5 Sekunden bei Sensor = 175 (accumulatedLight)
-  //also 35 Lichteinheiten pro Sekunden sind optimal laut dieser Messung (für die Canon)
-  //müssen dies nun für die Lochkamera berechnen + Film
+  //also 35 Lichteinheiten pro Sekunden sind optimal laut dieser Messung (f√ºr die Canon)
+  //m√ºssen dies nun f√ºr die Lochkamera berechnen + Film
   
-  //die Lochkamera habe eine Lochgröße von 0.25mm, eine Brennweite von 25mm, somit eine Blende von f100
+  //die Lochkamera habe eine Lochgr√∂√üe von 0.25mm, eine Brennweite von 25mm, somit eine Blende von f100
   //mit der Formel (gemessene Zeit bei SLR) * (lochkamerablende / SLR-Blende)^2
   //ergibt sich eine optimale Belichtungszeit von __125 Sekunden__ in diesem Fall (5sekunden) * (100 / 20)^2
   
-  //anschliessend muessen wir noch den Schwrzschildeffekt beachten, der die Belichtungszeit erhöht (eine Blendenstufe == doppelte Belichtungszeit
+  //anschliessend muessen wir noch den Schwrzschildeffekt beachten, der die Belichtungszeit erh√∂ht (eine Blendenstufe == doppelte Belichtungszeit
   //bei CHS100
   //Gemessene Belichtungszeit (s)	 1/10000 - 1/2	 1	 10	 100
   //Belichtungskorrektur (Blenden)	 0	 +1.2	 +1.3	 +1.5
@@ -59,13 +58,21 @@
   // == 26250 Lichteinheiten
   
   //wenn wir also 35 Lichteinheiten pro sekunde bekommen, haben wir nach den 12,5 minuten (die wir als optimal ausgerechnet haben, anhand der Daten von Lochkamera
-  //und mit der DSLR gemessenen Zeit) die 26250 Lichteinheiten gesammelt und müssten ein optimal Belichtetes Negativ haben
+  //und mit der DSLR gemessenen Zeit) die 26250 Lichteinheiten gesammelt und m√ºssten ein optimal Belichtetes Negativ haben
   
-  //somit Stellen wir fest: unser Maximalwert für einem chs100 bei Blende 100 sind ~27000 (27k)
+  //somit Stellen wir fest: unser Maximalwert f√ºr einem chs100 bei Blende 100 sind ~27000 (27k)
+  
+  
+  /*
+  TODO:
+   - cleanup! -> use main loop for regular exposure, not extra functions, so having better control and readability
+   - log exposure time for later reference (eg. testing film exposures), nice graphs, etc.
+  */
   
   boolean checkExposure(FilmType);
   
   struct FilmType{
+    /* TODO: regarding schwartzschildt: interpolate time after passing last reference time (which atm. is reciprocityFailure1000s)  */
     long  maxLight;
     float reciprocityFailure1s;
     float reciprocityFailure10s;
@@ -76,23 +83,58 @@
   unsigned long exposureTime=0;
   short autoExposure=0;
   short i=0;
-  short isOpen=0;
+  boolean isShooting = false;
   
   float maxLight=0;
   float lichtWert;
   float accumulatedLight = 0.0;
-  struct FilmType chs50, chs100, portra800, delta3200;
+  struct FilmType chs50, chs100, portra800, delta3200, provia400x;
   int millsecondsSensorDelay = 250;
-  
+  unsigned long momentButtonPressed = 0;
+  unsigned long buttonPressDuration = 0;
   unsigned long time = 0;
-  int buttonState = 1;
+  unsigned long startMillis = 0;
+  unsigned long momentLastWrite = 0;
+  int buttonStatus = LOW;
   
   char buffer[128];
   char commandB;
   
   /* TODO!
-  Belichtung für Orthopan anpassen (ca. 1/3 längere Belichtungszeit weil Rot fehlt  
+  Belichtung fuer Orthopan anpassen (ca. 1/3 längere Belichtungszeit weil Rot fehlt  
   */
+  
+  
+  //This function will write a 4 byte (32bit) long to the eeprom at
+//the specified address to adress + 3.
+void EEPROMWritelong(int address, long value)
+      {
+      //Decomposition from a long to 4 bytes by using bitshift.
+      //One = Most significant -> Four = Least significant byte
+      byte four = (value & 0xFF);
+      byte three = ((value >> 8) & 0xFF);
+      byte two = ((value >> 16) & 0xFF);
+      byte one = ((value >> 24) & 0xFF);
+
+      //Write the 4 bytes into the eeprom memory.
+      EEPROM.write(address, four);
+      EEPROM.write(address + 1, three);
+      EEPROM.write(address + 2, two);
+      EEPROM.write(address + 3, one);
+ }
+ 
+ 
+ long EEPROMReadlong(long address)
+      {
+      //Read the 4 bytes from the eeprom memory.
+      long four = EEPROM.read(address);
+      long three = EEPROM.read(address + 1);
+      long two = EEPROM.read(address + 2);
+      long one = EEPROM.read(address + 3);
+
+      //Return the recomposed long by using bitshift.
+      return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
+      }
   
   void displaySensorDetails(void){
   sensor_t sensor;
@@ -106,7 +148,7 @@
   Serial.print  ("Resolution:   "); Serial.print(sensor.resolution); Serial.println(" lux");  
   Serial.println("------------------------------------");
   Serial.println("");
-  delay(500);
+  //delay(500);
 }
 
 void configureSensor(void){
@@ -129,7 +171,7 @@ void configureSensor(void){
 
   void setup() {  
    //setup film types 
-   //siehe erklaerung oben
+   //siehe erklaerung oben 
     chs50.reciprocityFailure1s    = 1.2;
     chs50.reciprocityFailure10s   = 1.3; 
     chs50.reciprocityFailure100s  = 1.5;
@@ -153,9 +195,18 @@ void configureSensor(void){
     delta3200.reciprocityFailure10s   = 3.0; 
     delta3200.reciprocityFailure100s  = 7.0;
     delta3200.reciprocityFailure1000s = 12.0;
-    delta3200.maxLight                = 875.0; 
+    delta3200.maxLight                = 875.0;
+   
+   // http://www.fujifilm.com/products/professional_films/pdf/provia_400x_datasheet.pdf
+    provia400x.reciprocityFailure1s   = 1.0;
+    provia400x.reciprocityFailure10s   = 1.0; 
+    provia400x.reciprocityFailure100s  = 1.3;
+    provia400x.reciprocityFailure1000s = 2.1;
+    provia400x.maxLight                = 6800.0;
+    momentLastWrite = millis();
+    startMillis = millis();
     
-    Serial.begin(9600);
+    //Serial.begin(9600);
     pinMode(button, INPUT);
   
     if (tsl.begin()) {
@@ -166,7 +217,7 @@ void configureSensor(void){
     } 
     displaySensorDetails();
     configureSensor();
-    servo.attach(2);
+    servo.attach(4);
     servo.write(0); 
   }
   
@@ -178,6 +229,29 @@ void configureSensor(void){
      lichtWert = 0;
      maxLight = 0;
      time = 0;
+     momentButtonPressed = 0;
+     buttonPressDuration = 0;
+     isShooting = false;
+     startMillis = millis();
+     momentLastWrite = time;
+  }
+  
+  void checkButton(){
+    buttonStatus = digitalRead(button);
+    if(buttonStatus == HIGH){
+      if (momentButtonPressed == 0) momentButtonPressed = time;
+      buttonPressDuration = time - momentButtonPressed;
+    }
+  }
+  
+  
+  void checkWritePeriodicalData(){
+    //write light value to eeprom if last write is 5 minutes ago
+    if (time - momentLastWrite > 300000){
+      EEPROMWritelong(0, accumulatedLight);
+      EEPROMWritelong(1, time);
+      momentLastWrite = time;
+    }  
   }
   
   void addLight(int millisecondsPassed){
@@ -188,18 +262,18 @@ void configureSensor(void){
         //millisecondsPassed is usually 250
         
         float newLight = (float) event.light * ((float) millisecondsPassed/1000);
-        Serial.print("add this much light: ");
-        Serial.println(newLight);
+        //Serial.print("add this much light: ");
+        //Serial.println(newLight);
         accumulatedLight += newLight;
         //dividing it, because we want use the light per second
         // /4.95 because every 202ms or ~1/5s second checks for light ... 10.1s because tsl needs  101ms to sense light x 2 , so 202ms
         //if newLight is not greater 0, then newlight is atleast 1
         //Serial.print(event.light); Serial.println(" lux.");
         if(time%1000 == 0){
-          Serial.print("Exposure time ins seconds: "); Serial.print( (float) time/1000);
+          //Serial.print("Exposure time ins seconds: "); Serial.print( (float) time/1000);
         }
       } else {
-        Serial.println("Sensor overload");
+        //Serial.println("Sensor overload");
       }
   
   }
@@ -207,11 +281,14 @@ void configureSensor(void){
   boolean checkExposure(struct FilmType *filmType){
     //first check if button might be pressed
    float  maxl = filmType->maxLight;
+   /*
    Serial.print("\nlicht gesammelt: ");
    Serial.print(accumulatedLight);
    Serial.print("\nprozent fertig: ");
    Serial.print((float) (accumulatedLight/filmType->maxLight) * 100);
    Serial.println();
+   */
+   
   //returns true if the accumulated Light is still less then our maximum
     if (time >= 1000L && time <= 10000L){
       return (accumulatedLight  <= (maxl * filmType->reciprocityFailure1s)); 
@@ -231,23 +308,6 @@ void configureSensor(void){
 
   }
   
-  
-  //this is only a testing function to check if the light sensor and the motor are working
-  //it will open/close the aperture depending on light intensitivity
-  void changeApertureByLight(){
-    sensors_event_t event;
-    tsl.getEvent(&event);
-    lichtWert = event.light;
-    Serial.println(lichtWert);
-    if(lichtWert > 350){
-      digitalWrite(4,HIGH);
-      servo.write(0);
-    }
-    else{
-      servo.write(170);
-    } 
-  }
-  
   void expose(unsigned long duration){
     reset();
     Serial.print("\ntime exposure\n shooting for milliseconds: " + duration);
@@ -258,19 +318,42 @@ void configureSensor(void){
       delay(millsecondsSensorDelay);
     }
     reset();
-   
   }
   
   void autoExpose(struct FilmType *filmType){
-     Serial.println("shooting now, auto light, no time limit");
+     //Serial.println("shooting now, auto light, no time limit");
      digitalWrite(4,HIGH);
-     Serial.println(filmType->maxLight);
+     //Serial.println(filmType->maxLight);
      servo.write(90);
      while(checkExposure(filmType)){
+      checkButton();
+      /*
+      Serial.print("buttonPressDuration: ");
+      Serial.println(buttonPressDuration);
+      */
+      // if button was pressed and now not anymore
+      if (buttonStatus == LOW && momentButtonPressed > 0) {
+        if (buttonPressDuration < 10000 && buttonPressDuration > 3000) {
+          EEPROMWritelong(0, accumulatedLight);
+          //EEPROMWritelong(1, time);
+          reset();
+          Serial.println("pausing...");
+          return;
+        } else if (buttonPressDuration >= 10000){
+          Serial.println("resetting...");
+          EEPROMWritelong(0, 0);
+          reset();
+          return;
+        }
+      }
+      
+      checkWritePeriodicalData();
       addLight(millsecondsSensorDelay);
       delay(millsecondsSensorDelay);
      }
-     reset();    
+     reset();
+     EEPROMWritelong(0, 0);  
+     //EEPROMWritelong(1, -1);  
   }
   
   void autoExpose(unsigned long duration, struct FilmType *filmType){
@@ -278,6 +361,7 @@ void configureSensor(void){
      digitalWrite(4,HIGH);
      servo.write(90);
      while(checkExposure(filmType) && (time <= duration)){
+       checkButton();
        addLight(millsecondsSensorDelay);
        delay(millsecondsSensorDelay);
      }
@@ -290,7 +374,7 @@ void configureSensor(void){
     delay(50);
     if(buffer[0] == 'E') {
       sscanf(buffer,"E%d %d %d",&exposureTime,&autoExposure, &maxLight);
-      Serial.println(exposureTime);
+      //Serial.println(exposureTime);
       return 1;
       //exit(0);
     } else if (buffer[0] == 'A'){
@@ -311,29 +395,51 @@ void configureSensor(void){
     or for full automation depending on the film type:  A
     */
     
+    
+    time = millis() - startMillis;
+    /*
     if(Serial.available()){
       int erg=receiveMessage();
       if (erg == 1 ){
         if (autoExposure && exposureTime > 0){
-          Serial.println("autoexpose");
+          // Serial.println("autoexpose");
          autoExpose(exposureTime,&chs100);
         } else if (autoExposure && exposureTime == 0){
           autoExpose(&chs100);
         }else {
-        Serial.println("timeExposure");
+        //Serial.println("timeExposure");
         expose(exposureTime);
         }
       } else if (erg == 2 ){
-        Serial.println("totale automatik");
+        //Serial.println("totale automatik");
         autoExpose(&chs100);  
       }
-      
-    } else if(digitalRead(button) == HIGH){
-      autoExpose(&chs100);
     }
-  }
+    */
+    
+    
+    checkButton();
+    if (momentButtonPressed > 0 && buttonPressDuration > 1000 && isShooting == false) {
+        isShooting = true;
+        unsigned long savedLight = EEPROMReadlong(0);
+        /*
+        Serial.print("read from eeprom: ");
+        Serial.println(savedLight);
+        */
+        //float savedTime = EEPROMReadlong(0);
+        if(savedLight > 0){
+         //restore from data saved on EEPROM 
+          accumulatedLight = savedLight; 
+        }
+        isShooting = true;
+        buttonPressDuration = 0;
+        momentButtonPressed = 0;
+        autoExpose(&provia400x);
+    }  
+}
   
   
   
   
+
 
