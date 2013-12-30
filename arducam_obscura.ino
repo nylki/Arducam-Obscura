@@ -66,7 +66,10 @@
   /*
   TODO:
    - cleanup! -> use main loop for regular exposure, not extra functions, so having better control and readability
-   - log exposure time for later reference (eg. testing film exposures), nice graphs, etc.
+   - log exposure time for later reference (eg. testing film exposures), nice graphs, etc
+   - only open aperture when a minimum brightness is present. useful when using a colorfilter. problem is, automatic exposure is unreliable,
+     as the sensor only detects the filtered light, but actually more light is entering the camera.
+   - 
   */
   
   boolean checkExposure(FilmType);
@@ -88,7 +91,7 @@
   float maxLight=0;
   float lichtWert;
   float accumulatedLight = 0.0;
-  struct FilmType chs50, chs100, portra800, delta3200, provia400x;
+  struct FilmType chs50, chs100, iso200, portra800, delta3200, provia400x;
   int millsecondsSensorDelay = 250;
   unsigned long momentButtonPressed = 0;
   unsigned long buttonPressDuration = 0;
@@ -184,6 +187,12 @@ void configureSensor(void){
     chs100.reciprocityFailure1000s = 1.9;
     chs100.maxLight                = 27000.0; 
     
+    iso200.reciprocityFailure1s    = 1.2;
+    iso200.reciprocityFailure10s   = 1.3; 
+    iso200.reciprocityFailure100s  = 1.5;
+    iso200.reciprocityFailure1000s = 1.9;
+    iso200.maxLight                = 13500.0; 
+    
     portra800.reciprocityFailure1s    = 1.4;
     portra800.reciprocityFailure10s   = 2.0; 
     portra800.reciprocityFailure100s  = 3.5;
@@ -206,7 +215,7 @@ void configureSensor(void){
     momentLastWrite = millis();
     startMillis = millis();
     
-    //Serial.begin(9600);
+    Serial.begin(9600);
     pinMode(button, INPUT);
   
     if (tsl.begin()) {
@@ -281,13 +290,13 @@ void configureSensor(void){
   boolean checkExposure(struct FilmType *filmType){
     //first check if button might be pressed
    float  maxl = filmType->maxLight;
-   /*
-   Serial.print("\nlicht gesammelt: ");
-   Serial.print(accumulatedLight);
+   
+   //Serial.print("\nlicht gesammelt: ");
+   //Serial.print(accumulatedLight);
    Serial.print("\nprozent fertig: ");
    Serial.print((float) (accumulatedLight/filmType->maxLight) * 100);
    Serial.println();
-   */
+   
    
   //returns true if the accumulated Light is still less then our maximum
     if (time >= 1000L && time <= 10000L){
@@ -351,9 +360,10 @@ void configureSensor(void){
       addLight(millsecondsSensorDelay);
       delay(millsecondsSensorDelay);
      }
+     
+     EEPROMWritelong(0, 0);
      reset();
-     EEPROMWritelong(0, 0);  
-     //EEPROMWritelong(1, -1);  
+     return;
   }
   
   void autoExpose(unsigned long duration, struct FilmType *filmType){
@@ -385,6 +395,12 @@ void configureSensor(void){
   }
   
   void loop() {
+    
+    
+            unsigned long savedLight = EEPROMReadlong(0);
+        
+        Serial.print("read from eeprom: ");
+        Serial.println(savedLight);
     /*
     
     checking for serial/usb input
@@ -422,10 +438,10 @@ void configureSensor(void){
     if (momentButtonPressed > 0 && buttonPressDuration > 1000 && isShooting == false) {
         isShooting = true;
         unsigned long savedLight = EEPROMReadlong(0);
-        /*
+        
         Serial.print("read from eeprom: ");
         Serial.println(savedLight);
-        */
+        
         //float savedTime = EEPROMReadlong(0);
         if(savedLight > 0){
          //restore from data saved on EEPROM 
@@ -434,7 +450,7 @@ void configureSensor(void){
         isShooting = true;
         buttonPressDuration = 0;
         momentButtonPressed = 0;
-        autoExpose(&provia400x);
+        autoExpose(&iso200);
     }  
 }
   
