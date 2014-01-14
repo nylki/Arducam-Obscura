@@ -39,14 +39,14 @@
   
   //Messung mit Canon, f20, autozeit, iso100... Zeit 5 Sekunden
   //Messung gleiche Zeit 5 Sekunden bei Sensor = 175 (accumulatedLight)
-  //also 35 Lichteinheiten pro Sekunden sind optimal laut dieser Messung (f√ºr die Canon)
-  //m√ºssen dies nun f√ºr die Lochkamera berechnen + Film
+  //also 35 Lichteinheiten pro Sekunden sind optimal laut dieser Messung (f‚àö¬∫r die Canon)
+  //m‚àö¬∫ssen dies nun f‚àö¬∫r die Lochkamera berechnen + Film
   
-  //die Lochkamera habe eine Lochgr√∂√üe von 0.25mm, eine Brennweite von 25mm, somit eine Blende von f100
+  //die Lochkamera habe eine Lochgr‚àö‚àÇ‚àö√ºe von 0.25mm, eine Brennweite von 25mm, somit eine Blende von f100
   //mit der Formel (gemessene Zeit bei SLR) * (lochkamerablende / SLR-Blende)^2
   //ergibt sich eine optimale Belichtungszeit von __125 Sekunden__ in diesem Fall (5sekunden) * (100 / 20)^2
   
-  //anschliessend muessen wir noch den Schwrzschildeffekt beachten, der die Belichtungszeit erh√∂ht (eine Blendenstufe == doppelte Belichtungszeit
+  //anschliessend muessen wir noch den Schwrzschildeffekt beachten, der die Belichtungszeit erh‚àö‚àÇht (eine Blendenstufe == doppelte Belichtungszeit
   //bei CHS100
   //Gemessene Belichtungszeit (s)	 1/10000 - 1/2	 1	 10	 100
   //Belichtungskorrektur (Blenden)	 0	 +1.2	 +1.3	 +1.5
@@ -58,9 +58,9 @@
   // == 26250 Lichteinheiten
   
   //wenn wir also 35 Lichteinheiten pro sekunde bekommen, haben wir nach den 12,5 minuten (die wir als optimal ausgerechnet haben, anhand der Daten von Lochkamera
-  //und mit der DSLR gemessenen Zeit) die 26250 Lichteinheiten gesammelt und m√ºssten ein optimal Belichtetes Negativ haben
+  //und mit der DSLR gemessenen Zeit) die 26250 Lichteinheiten gesammelt und m‚àö¬∫ssten ein optimal Belichtetes Negativ haben
   
-  //somit Stellen wir fest: unser Maximalwert f√ºr einem chs100 bei Blende 100 sind ~27000 (27k)
+  //somit Stellen wir fest: unser Maximalwert f‚àö¬∫r einem chs100 bei Blende 100 sind ~27000 (27k)
   
   
   /*
@@ -104,7 +104,7 @@
   char commandB;
   
   /* TODO!
-  Belichtung fuer Orthopan anpassen (ca. 1/3 längere Belichtungszeit weil Rot fehlt  
+  Belichtung fuer Orthopan anpassen (ca. 1/3 l√§ngere Belichtungszeit weil Rot fehlt  
   */
   
   
@@ -227,13 +227,18 @@ void configureSensor(void){
     displaySensorDetails();
     configureSensor();
     servo.attach(4);
-    servo.write(0); 
+    servo.write(0);
+    delay(1000);
+    servo.detach();
   }
   
   void reset(){
      displaySensorDetails();
      configureSensor();
+     if(servo.attached() == false) servo.attach(4);
      servo.write(0);
+     delay(1000);
+     servo.detach();
      accumulatedLight = 0.0;
      lichtWert = 0;
      maxLight = 0;
@@ -243,6 +248,7 @@ void configureSensor(void){
      isShooting = false;
      startMillis = millis();
      momentLastWrite = time;
+     
   }
   
   void checkButton(){
@@ -291,8 +297,8 @@ void configureSensor(void){
     //first check if button might be pressed
    float  maxl = filmType->maxLight;
    
-   //Serial.print("\nlicht gesammelt: ");
-   //Serial.print(accumulatedLight);
+   Serial.print("\nlicht gesammelt: ");
+   Serial.print(accumulatedLight);
    Serial.print("\nprozent fertig: ");
    Serial.print((float) (accumulatedLight/filmType->maxLight) * 100);
    Serial.println();
@@ -330,46 +336,56 @@ void configureSensor(void){
   }
   
   void autoExpose(struct FilmType *filmType){
-     //Serial.println("shooting now, auto light, no time limit");
+     Serial.println("shooting now, auto light, no time limit");
      digitalWrite(4,HIGH);
      //Serial.println(filmType->maxLight);
      servo.write(90);
+     delay(1000);
+     servo.detach();
+     
      while(checkExposure(filmType)){
       checkButton();
-      /*
+      
       Serial.print("buttonPressDuration: ");
       Serial.println(buttonPressDuration);
-      */
+      
       // if button was pressed and now not anymore
-      if (buttonStatus == LOW && momentButtonPressed > 0) {
-        if (buttonPressDuration < 10000 && buttonPressDuration > 3000) {
-          EEPROMWritelong(0, accumulatedLight);
-          //EEPROMWritelong(1, time);
+      if (buttonStatus == LOW && buttonPressDuration > 0) {
+        
+        if (buttonPressDuration > 1000) {
+          if(buttonPressDuration < 3000){
+             Serial.println("pause");
+            EEPROMWritelong(0, accumulatedLight);
+          } else {
+           Serial.println("reset");
+            EEPROMWritelong(0, 0);
+          }
+          Serial.println("resetting stuff now...");
           reset();
-          Serial.println("pausing...");
           return;
-        } else if (buttonPressDuration >= 10000){
-          Serial.println("resetting...");
-          EEPROMWritelong(0, 0);
-          reset();
-          return;
+        } else {
+          buttonPressDuration = 0;
+          momentButtonPressed = 0;
         }
       }
-      
-      checkWritePeriodicalData();
-      addLight(millsecondsSensorDelay);
-      delay(millsecondsSensorDelay);
+        
+        // do this always
+        checkWritePeriodicalData();
+        addLight(millsecondsSensorDelay);
+        delay(millsecondsSensorDelay);
+       
      }
      
      EEPROMWritelong(0, 0);
      reset();
      return;
-  }
+    }
   
   void autoExpose(unsigned long duration, struct FilmType *filmType){
      Serial.println("shooting now, auto light, but with time limit");
      digitalWrite(4,HIGH);
      servo.write(90);
+     
      while(checkExposure(filmType) && (time <= duration)){
        checkButton();
        addLight(millsecondsSensorDelay);
@@ -396,11 +412,8 @@ void configureSensor(void){
   
   void loop() {
     
+    delay(1);
     
-            unsigned long savedLight = EEPROMReadlong(0);
-        
-        Serial.print("read from eeprom: ");
-        Serial.println(savedLight);
     /*
     
     checking for serial/usb input
@@ -436,26 +449,26 @@ void configureSensor(void){
     
     checkButton();
     if (momentButtonPressed > 0 && buttonPressDuration > 1000 && isShooting == false) {
+        servo.attach(4);
         isShooting = true;
+
         unsigned long savedLight = EEPROMReadlong(0);
-        
         Serial.print("read from eeprom: ");
         Serial.println(savedLight);
-        
-        //float savedTime = EEPROMReadlong(0);
-        if(savedLight > 0){
+        if(savedLight > 0)
          //restore from data saved on EEPROM 
           accumulatedLight = savedLight; 
-        }
+        
         isShooting = true;
         buttonPressDuration = 0;
         momentButtonPressed = 0;
-        autoExpose(&iso200);
+        autoExpose(&chs100);
     }  
 }
   
   
   
   
+
 
 
