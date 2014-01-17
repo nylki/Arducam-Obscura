@@ -305,6 +305,7 @@ void configureSensor(void){
    
    
   //returns true if the accumulated Light is still less then our maximum
+  //TODO: TIME MUST BE SAVED ON EEPROM!!!
     if (time >= 1000L && time <= 10000L){
       return (accumulatedLight  <= (maxl * filmType->reciprocityFailure1s)); 
     } else if (time >= 10000L && time <= 100000L){
@@ -326,8 +327,7 @@ void configureSensor(void){
   void expose(unsigned long duration){
     reset();
     Serial.print("\ntime exposure\n shooting for milliseconds: " + duration);
-    digitalWrite(4,HIGH);
-    servo.write(-20);
+    servo.write(90);
     while(time < duration){
       addLight(millsecondsSensorDelay);
       delay(millsecondsSensorDelay);
@@ -337,7 +337,6 @@ void configureSensor(void){
   
   void autoExpose(struct FilmType *filmType){
      Serial.println("shooting now, auto light, no time limit");
-     digitalWrite(4,HIGH);
      //Serial.println(filmType->maxLight);
      servo.write(90);
      delay(1000);
@@ -352,13 +351,15 @@ void configureSensor(void){
       // if button was pressed and now not anymore
       if (buttonStatus == LOW && buttonPressDuration > 0) {
         
-        if (buttonPressDuration > 1000) {
-          if(buttonPressDuration < 3000){
+        if (buttonPressDuration > 500) {
+          if(buttonPressDuration < 4000){
              Serial.println("pause");
             EEPROMWritelong(0, accumulatedLight);
+            EEPROMWritelong(4, time);
           } else {
            Serial.println("reset");
             EEPROMWritelong(0, 0);
+            EEPROMWritelong(4, 0);
           }
           Serial.println("resetting stuff now...");
           reset();
@@ -377,13 +378,13 @@ void configureSensor(void){
      }
      
      EEPROMWritelong(0, 0);
+     EEPROMWritelong(4, 0);
      reset();
      return;
     }
   
   void autoExpose(unsigned long duration, struct FilmType *filmType){
      Serial.println("shooting now, auto light, but with time limit");
-     digitalWrite(4,HIGH);
      servo.write(90);
      
      while(checkExposure(filmType) && (time <= duration)){
@@ -394,57 +395,9 @@ void configureSensor(void){
      reset();
   }
   
-  int receiveMessage(){
-    memset(buffer,'\0',128);
-    Serial.readBytesUntil('!',buffer,120);
-    delay(50);
-    if(buffer[0] == 'E') {
-      sscanf(buffer,"E%d %d %d",&exposureTime,&autoExposure, &maxLight);
-      //Serial.println(exposureTime);
-      return 1;
-      //exit(0);
-    } else if (buffer[0] == 'A'){
-      return 2;
-    } else {
-      return 0;
-    }
-  }
-  
   void loop() {
-    
     delay(1);
-    
-    /*
-    
-    checking for serial/usb input
-    to start exposure via usb send:
-    
-    E<maxTime> <maxExposure> <maxLight>
-    
-    or for full automation depending on the film type:  A
-    */
-    
-    
     time = millis() - startMillis;
-    /*
-    if(Serial.available()){
-      int erg=receiveMessage();
-      if (erg == 1 ){
-        if (autoExposure && exposureTime > 0){
-          // Serial.println("autoexpose");
-         autoExpose(exposureTime,&chs100);
-        } else if (autoExposure && exposureTime == 0){
-          autoExpose(&chs100);
-        }else {
-        //Serial.println("timeExposure");
-        expose(exposureTime);
-        }
-      } else if (erg == 2 ){
-        //Serial.println("totale automatik");
-        autoExpose(&chs100);  
-      }
-    }
-    */
     
     
     checkButton();
@@ -453,11 +406,15 @@ void configureSensor(void){
         isShooting = true;
 
         unsigned long savedLight = EEPROMReadlong(0);
-        Serial.print("read from eeprom: ");
+        unsigned long savedTime = EEPROMReadlong(4);
+        Serial.print("read from eeprom: light: ");
         Serial.println(savedLight);
-        if(savedLight > 0)
+        Serial.print("time: ");
+        Serial.println(savedTime);
+        if(savedLight > 0 && savedTime >= 0)
          //restore from data saved on EEPROM 
           accumulatedLight = savedLight; 
+          time = savedTime;
         
         isShooting = true;
         buttonPressDuration = 0;
@@ -465,10 +422,3 @@ void configureSensor(void){
         autoExpose(&chs100);
     }  
 }
-  
-  
-  
-  
-
-
-
