@@ -39,14 +39,14 @@
   
   //Messung mit Canon, f20, autozeit, iso100... Zeit 5 Sekunden
   //Messung gleiche Zeit 5 Sekunden bei Sensor = 175 (accumulatedLight)
-  //also 35 Lichteinheiten pro Sekunden sind optimal laut dieser Messung (f‚àö¬∫r die Canon)
-  //m‚àö¬∫ssen dies nun f‚àö¬∫r die Lochkamera berechnen + Film
+  //also 35 Lichteinheiten pro Sekunden sind optimal laut dieser Messung (f‚Äö√†√∂¬¨‚à´r die Canon)
+  //m‚Äö√†√∂¬¨‚à´ssen dies nun f‚Äö√†√∂¬¨‚à´r die Lochkamera berechnen + Film
   
-  //die Lochkamera habe eine Lochgr‚àö‚àÇ‚àö√ºe von 0.25mm, eine Brennweite von 25mm, somit eine Blende von f100
+  //die Lochkamera habe eine Lochgr‚Äö√†√∂‚Äö√†√á‚Äö√†√∂‚àö¬∫e von 0.25mm, eine Brennweite von 25mm, somit eine Blende von f100
   //mit der Formel (gemessene Zeit bei SLR) * (lochkamerablende / SLR-Blende)^2
   //ergibt sich eine optimale Belichtungszeit von __125 Sekunden__ in diesem Fall (5sekunden) * (100 / 20)^2
   
-  //anschliessend muessen wir noch den Schwrzschildeffekt beachten, der die Belichtungszeit erh‚àö‚àÇht (eine Blendenstufe == doppelte Belichtungszeit
+  //anschliessend muessen wir noch den Schwrzschildeffekt beachten, der die Belichtungszeit erh‚Äö√†√∂‚Äö√†√áht (eine Blendenstufe == doppelte Belichtungszeit
   //bei CHS100
   //Gemessene Belichtungszeit (s)	 1/10000 - 1/2	 1	 10	 100
   //Belichtungskorrektur (Blenden)	 0	 +1.2	 +1.3	 +1.5
@@ -58,9 +58,9 @@
   // == 26250 Lichteinheiten
   
   //wenn wir also 35 Lichteinheiten pro sekunde bekommen, haben wir nach den 12,5 minuten (die wir als optimal ausgerechnet haben, anhand der Daten von Lochkamera
-  //und mit der DSLR gemessenen Zeit) die 26250 Lichteinheiten gesammelt und m‚àö¬∫ssten ein optimal Belichtetes Negativ haben
+  //und mit der DSLR gemessenen Zeit) die 26250 Lichteinheiten gesammelt und m‚Äö√†√∂¬¨‚à´ssten ein optimal Belichtetes Negativ haben
   
-  //somit Stellen wir fest: unser Maximalwert f‚àö¬∫r einem chs100 bei Blende 100 sind ~27000 (27k)
+  //somit Stellen wir fest: unser Maximalwert f‚Äö√†√∂¬¨‚à´r einem chs100 bei Blende 100 sind ~27000 (27k)
   
   
   /*
@@ -104,7 +104,7 @@
   char commandB;
   
   /* TODO!
-  Belichtung fuer Orthopan anpassen (ca. 1/3 l√§ngere Belichtungszeit weil Rot fehlt  
+  Belichtung fuer Orthopan anpassen (ca. 1/3 l‚àö¬ßngere Belichtungszeit weil Rot fehlt  
   */
   
   
@@ -237,8 +237,9 @@ void configureSensor(void){
      configureSensor();
      if(servo.attached() == false) servo.attach(4);
      servo.write(0);
+      // detaching in right after rotating so we save energy, as we probably won't need the servo for a while
      delay(1000);
-     servo.detach();
+     servo.detach(); 
      accumulatedLight = 0.0;
      lichtWert = 0;
      maxLight = 0;
@@ -262,11 +263,15 @@ void configureSensor(void){
   
   void checkWritePeriodicalData(){
     //write light value to eeprom if last write is 5 minutes ago
+    /*
+    doing nothing for now.
+    
     if (time - momentLastWrite > 300000){
       EEPROMWritelong(0, accumulatedLight);
-      EEPROMWritelong(1, time);
+      EEPROMWritelong(4, time);
       momentLastWrite = time;
     }  
+    */
   }
   
   void addLight(int millisecondsPassed){
@@ -422,3 +427,4 @@ void configureSensor(void){
         autoExpose(&chs100);
     }  
 }
+
